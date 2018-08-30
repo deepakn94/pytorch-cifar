@@ -18,8 +18,12 @@ from utils import progress_bar
 
 
 parser = argparse.ArgumentParser(description='PyTorch CIFAR10 Training')
+parser.add_argument('--arch', required=True, help="Architecture to run")
 parser.add_argument('--lr', default=0.1, type=float, help='learning rate')
 parser.add_argument('--resume', '-r', action='store_true', help='resume from checkpoint')
+parser.add_argument('-b', '--minibatch_size', default=128, type=int, help="Minibatch size")
+parser.add_argument('--num_minibatches', default=None, type=int, help='Number of minibatches to run')
+parser.add_argument('forward_only', action='store_true', help="Run only the forward pass of the model")
 args = parser.parse_args()
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -41,7 +45,7 @@ transform_test = transforms.Compose([
 ])
 
 trainset = torchvision.datasets.CIFAR10(root='./data', train=True, download=True, transform=transform_train)
-trainloader = torch.utils.data.DataLoader(trainset, batch_size=128, shuffle=True, num_workers=2)
+trainloader = torch.utils.data.DataLoader(trainset, batch_size=args.minibatch_size, shuffle=True, num_workers=2)
 
 testset = torchvision.datasets.CIFAR10(root='./data', train=False, download=True, transform=transform_test)
 testloader = torch.utils.data.DataLoader(testset, batch_size=100, shuffle=False, num_workers=2)
@@ -50,17 +54,28 @@ classes = ('plane', 'car', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship'
 
 # Model
 print('==> Building model..')
-# net = VGG('VGG19')
-net = ResNet18()
-# net = PreActResNet18()
-# net = GoogLeNet()
-# net = DenseNet121()
-# net = ResNeXt29_2x64d()
-# net = MobileNet()
-# net = MobileNetV2()
-# net = DPN92()
-# net = ShuffleNetG2()
-# net = SENet18()
+if args.arch == 'vgg19':
+    net = VGG('VGG19')
+elif args.arch == 'resnet18':
+    net = ResNet18()
+elif args.arch == 'preact18':
+    net = PreActResNet18()
+elif args.arch == 'googlenet':
+    net = GoogLeNet()
+elif args.arch == 'densenet121':
+    net = DenseNet121()
+elif args.arch == 'resnext29':
+    net = ResNeXt29_2x64d()
+elif args.arch == 'mobilenet':
+    net = MobileNet()
+elif args.arch == 'mobilenet_v2':
+    net = MobileNetV2()
+elif args.arch == 'dpn92':
+    net = DPN92()
+elif args.arch == 'shufflenet_g2':
+    net = ShuffleNetG2()
+elif args.arch == 'senet18':
+    net = SENet18()
 net = net.to(device)
 if device == 'cuda':
     net = torch.nn.DataParallel(net)
@@ -97,6 +112,10 @@ def train(epoch):
         _, predicted = outputs.max(1)
         total += targets.size(0)
         correct += predicted.eq(targets).sum().item()
+
+        if args.num_minibatches is not None:
+            if batch_idx > args.num_minibatches:
+                break
 
         progress_bar(batch_idx, len(trainloader), 'Loss: %.3f | Acc: %.3f%% (%d/%d)'
             % (train_loss/(batch_idx+1), 100.*correct/total, correct, total))
@@ -138,4 +157,6 @@ def test(epoch):
 
 for epoch in range(start_epoch, start_epoch+200):
     train(epoch)
+    if args.num_minibatches is not None:
+        break
     test(epoch)
